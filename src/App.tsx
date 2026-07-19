@@ -55,6 +55,7 @@ import {
   Tooltip, 
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import { jsPDF } from 'jspdf';
 
 // --- Types ---
 
@@ -504,6 +505,7 @@ export default function App() {
   const [isInformationModalOpen, setIsInformationModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isClearAllConfirmOpen, setIsClearAllConfirmOpen] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'stats' | 'transactions' | 'profile'>('dashboard');
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [deleteCollection, setDeleteCollection] = useState<string>('');
@@ -587,6 +589,193 @@ export default function App() {
   const totalDebt = liabilities.reduce((acc, curr) => acc + curr.amount, 0);
   const netWorth = totalCash + totalInvestments - totalDebt;
   const netCash = totalCash - totalDebt;
+
+  const handleDownloadPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Page styling settings
+      const brandColor = [27, 30, 62]; // Dark Slate
+      const accentColor = [0, 255, 204]; // Cute Neon green #00ffcc
+      
+      // Since standard jsPDF is white background, let's draw a nice header block!
+      doc.setFillColor(27, 30, 62);
+      doc.rect(0, 0, 210, 42, "F");
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(0, 255, 204); // Neon Green text
+      doc.text("PIGGYVAULT 3D", 14, 18);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(230, 232, 235);
+      const ownerName = user?.displayName || user?.email?.split('@')[0] || 'Companion';
+      doc.text(`LAPORAN RINGKASAN KEUANGAN KANTONG SAKU - ${ownerName.toUpperCase()}`, 14, 25);
+      
+      const today = new Date().toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Dicetak pada: ${today}`, 14, 32);
+      
+      let y = 54;
+      
+      // 1. LIQUID CASH SECTION
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(16, 185, 129); // Emerald
+      doc.text("💰 Liquid Cash (Stash Kas)", 14, y);
+      y += 6;
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Nama Akun", 14, y);
+      doc.text("Saldo (IDR)", 196, y, { align: "right" });
+      
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.5);
+      doc.line(14, y + 2, 196, y + 2);
+      y += 8;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(70, 70, 70);
+      if (accounts.length === 0) {
+        doc.text("Belum ada akun cash stash", 14, y);
+        y += 8;
+      } else {
+        accounts.forEach(acc => {
+          doc.text(acc.name, 14, y);
+          doc.text(formatCurrency(acc.balance), 196, y, { align: "right" });
+          y += 7;
+        });
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(16, 185, 129);
+      doc.text("Total Liquid Cash:", 14, y);
+      doc.text(formatCurrency(totalCash), 196, y, { align: "right" });
+      y += 14;
+      
+      // 2. INVESTMENTS SECTION
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(138, 43, 226); // Purple
+      doc.text("📈 Investments (Aset Tumbuh)", 14, y);
+      y += 6;
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Nama Investasi (Kategori)", 14, y);
+      doc.text("Nilai (IDR)", 196, y, { align: "right" });
+      
+      doc.line(14, y + 2, 196, y + 2);
+      y += 8;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(70, 70, 70);
+      if (investments.length === 0) {
+        doc.text("Belum ada investasi pertumbuhan", 14, y);
+        y += 8;
+      } else {
+        investments.forEach(inv => {
+          doc.text(`${inv.name} (${inv.category})`, 14, y);
+          doc.text(formatCurrency(inv.value), 196, y, { align: "right" });
+          y += 7;
+        });
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(138, 43, 226);
+      doc.text("Total Investments:", 14, y);
+      doc.text(formatCurrency(totalInvestments), 196, y, { align: "right" });
+      y += 14;
+      
+      // 3. LIABILITIES SECTION
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(244, 63, 94); // Rose
+      doc.text("🚨 Liabilities (Hutang / Cicilan)", 14, y);
+      y += 6;
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Nama Hutang (Jatuh Tempo)", 14, y);
+      doc.text("Jumlah (IDR)", 196, y, { align: "right" });
+      
+      doc.line(14, y + 2, 196, y + 2);
+      y += 8;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(70, 70, 70);
+      if (liabilities.length === 0) {
+        doc.text("Belum ada liabilitas / hutang", 14, y);
+        y += 8;
+      } else {
+        liabilities.forEach(debt => {
+          const dueStr = debt.dueDate ? ` (Jatuh Tempo: ${formatDate(debt.dueDate)})` : '';
+          doc.text(`${debt.name}${dueStr}`, 14, y);
+          doc.text(formatCurrency(debt.amount), 196, y, { align: "right" });
+          y += 7;
+        });
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(244, 63, 94);
+      doc.text("Total Liabilities:", 14, y);
+      doc.text(formatCurrency(totalDebt), 196, y, { align: "right" });
+      y += 16;
+      
+      // Check if page height is exceeded
+      if (y > 230) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      // 4. SUMMARY BOX
+      doc.setDrawColor(0, 0, 0);
+      doc.setFillColor(240, 244, 255);
+      doc.rect(14, y, 182, 38, "FD");
+      
+      y += 8;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(50, 50, 50);
+      doc.text("RINGKASAN AKUMULASI SAKU:", 20, y);
+      
+      y += 8;
+      doc.setFontSize(10);
+      doc.text("Net Liquid Cash (Cash - Debt):", 20, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(netCash >= 0 ? 16 : 220, netCash >= 0 ? 185 : 50, netCash >= 0 ? 129 : 50);
+      doc.text(formatCurrency(netCash), 180, y, { align: "right" });
+      
+      y += 8;
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(50, 50, 50);
+      doc.text("Core Net Worth (Kekayaan Bersih):", 20, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(138, 43, 226);
+      doc.text(formatCurrency(netWorth), 180, y, { align: "right" });
+      
+      // Print cute signature / footer at standard bottom
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Laporan ini dihasilkan secara otomatis oleh PiggyVault 3D 🐷🚀 - Keep breeding that stash!", 14, 285);
+      
+      doc.save(`PiggyVault_Laporan_Keuangan_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+    }
+  };
 
   // Chart Data
   const totalAssets = totalCash + totalInvestments + totalDebt;
@@ -1843,6 +2032,16 @@ export default function App() {
                 </Card>
               </section>
 
+              {/* Quick Summary Detail Trigger Button */}
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setIsSummaryModalOpen(true)}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#00ffcc] to-[#8a2be2] text-black font-black uppercase tracking-wider text-xs shadow-[5px_5px_0px_rgba(0,0,0,1)] border-2 border-black flex items-center justify-center gap-2.5 mb-6 hover:translate-y-[2px] hover:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+              >
+                📊 LIHAT RINGKASAN DETAIL KEUANGAN SAKU 🐷
+              </motion.button>
+
               {/* Small Info Grid */}
               <section className="grid grid-cols-3 gap-4">
                 <div className="bg-[#171a35] rounded-2xl p-4 border-2 border-black shadow-[3px_3px_0px_rgba(0,0,0,1)] text-left hover:translate-y-[-2px] transition-transform">
@@ -2212,6 +2411,126 @@ export default function App() {
               className="flex-1 py-3.5 rounded-xl bg-red-500 border-2 border-black text-white font-black uppercase text-xs shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 transition-all"
             >
               Clear Everything
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* --- Financial Summary Detail Modal --- */}
+      <Modal
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        title="🐷 Detail Ringkasan Keuangan Saku"
+      >
+        <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+          {/* LIQUID CASH BLOCK */}
+          <div className="p-5 bg-gradient-to-br from-[#1b204c] to-black/30 border-2 border-black rounded-[2rem] shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+              💰 Liquid Cash (Stash Kas)
+            </h4>
+            <div className="space-y-2.5">
+              {accounts.length === 0 ? (
+                <p className="text-xs text-white/40 italic">Belum ada akun cash stash</p>
+              ) : (
+                accounts.map(acc => (
+                  <div key={acc.id} className="flex justify-between items-center text-xs p-2.5 bg-black/25 rounded-xl border border-black/50">
+                    <span className="font-bold text-white/80">{acc.name}</span>
+                    <span className="font-mono font-black text-emerald-400">{formatCurrency(acc.balance)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 pt-3 border-t border-black/40 flex justify-between items-center">
+              <span className="text-[10px] font-black text-white/50 uppercase">TOTAL LIQUID CASH</span>
+              <span className="text-sm font-mono font-black text-emerald-400">{formatCurrency(totalCash)}</span>
+            </div>
+          </div>
+
+          {/* INVESTMENTS BLOCK */}
+          <div className="p-5 bg-gradient-to-br from-[#1b204c] to-black/30 border-2 border-black rounded-[2rem] shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+              📈 Investments (Aset Tumbuh)
+            </h4>
+            <div className="space-y-2.5">
+              {investments.length === 0 ? (
+                <p className="text-xs text-white/40 italic">Belum ada investasi pertumbuhan</p>
+              ) : (
+                investments.map(inv => (
+                  <div key={inv.id} className="flex justify-between items-center text-xs p-2.5 bg-black/25 rounded-xl border border-black/50">
+                    <div>
+                      <span className="font-bold text-white/80 block">{inv.name}</span>
+                      <span className="text-[9px] text-indigo-300 font-bold uppercase">{inv.category}</span>
+                    </div>
+                    <span className="font-mono font-black text-indigo-400">{formatCurrency(inv.value)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 pt-3 border-t border-black/40 flex justify-between items-center">
+              <span className="text-[10px] font-black text-white/50 uppercase">TOTAL INVESTMENTS</span>
+              <span className="text-sm font-mono font-black text-indigo-400">{formatCurrency(totalInvestments)}</span>
+            </div>
+          </div>
+
+          {/* LIABILITIES BLOCK */}
+          <div className="p-5 bg-gradient-to-br from-[#1b204c] to-black/30 border-2 border-black rounded-[2rem] shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            <h4 className="text-xs font-black text-rose-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+              🚨 Liabilities (Hutang/Cicilan)
+            </h4>
+            <div className="space-y-2.5">
+              {liabilities.length === 0 ? (
+                <p className="text-xs text-white/40 italic">Hore! Belum ada liabilitas / hutang</p>
+              ) : (
+                liabilities.map(debt => (
+                  <div key={debt.id} className="text-xs p-3 bg-black/25 rounded-xl border border-black/50 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-white/80">{debt.name}</span>
+                      <span className="font-mono font-black text-rose-400">{formatCurrency(debt.amount)}</span>
+                    </div>
+                    {debt.dueDate && (
+                      <div className="flex items-center gap-1.5 p-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] w-fit">
+                        <Calendar size={10} className="text-rose-400" />
+                        <span className="font-bold text-rose-300 uppercase">Jatuh Tempo: {formatDate(debt.dueDate)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-4 pt-3 border-t border-black/40 flex justify-between items-center">
+              <span className="text-[10px] font-black text-white/50 uppercase">TOTAL LIABILITIES</span>
+              <span className="text-sm font-mono font-black text-rose-400">{formatCurrency(totalDebt)}</span>
+            </div>
+          </div>
+
+          {/* TOTAL NET WORTH METRICS */}
+          <div className="p-6 bg-gradient-to-r from-[#8a2be2]/30 to-[#ff007f]/30 border-4 border-black rounded-[2.5rem] shadow-[6px_6px_0px_rgba(0,0,0,1)] text-center space-y-3">
+            <div>
+              <p className="text-[10px] font-black text-[#00ffcc] uppercase tracking-widest">NET LIQUID CASH</p>
+              <h3 className={cn("text-xl font-display font-black tracking-tight drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)]", netCash >= 0 ? "text-[#00ffcc]" : "text-rose-400")}>
+                {formatCurrency(netCash)}
+              </h3>
+            </div>
+            <div className="pt-2 border-t border-black/30">
+              <p className="text-[10px] font-black text-white/80 uppercase tracking-widest font-display">CORE NET WORTH</p>
+              <h2 className="text-2xl font-display font-black tracking-tight drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)] text-white">
+                {formatCurrency(netWorth)}
+              </h2>
+            </div>
+          </div>
+          
+          <div className="flex gap-4">
+            <Button 
+              onClick={handleDownloadPDF}
+              className="flex-1 py-4 bg-purple-600 hover:bg-purple-500 text-white border-2 border-black rounded-2xl font-black uppercase text-xs shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              📥 Download PDF
+            </Button>
+            <Button 
+              onClick={() => setIsSummaryModalOpen(false)}
+              className="flex-1 py-4 bg-[#00ffcc] text-black border-2 border-black rounded-2xl font-black uppercase text-xs shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 cursor-pointer"
+            >
+              Tutup
             </Button>
           </div>
         </div>
